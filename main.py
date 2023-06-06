@@ -5,9 +5,20 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 import io
+from users import users_bp
 
 app = Flask(__name__)
 CORS(app)
+
+app.register_blueprint(users_bp, url_prefix='/users')
+
+# @app.route("/login", methods=["POST"])
+# def login_route():
+#     return login()
+
+# @app.route("/login", methods=["POST"])
+# def login_route():
+#     return login()
 
 # Menginisialisasi penyimpanan Google Cloud
 storage_client = storage.Client()

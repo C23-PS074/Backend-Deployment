@@ -3,3 +3,5 @@ flask-cors
 google-cloud-storage
 tensorflow
 Pillow
+bcrypt
+mysql-connector-python
