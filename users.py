@@ -17,7 +17,14 @@ db = mysql.connector.connect(
 cursor = db.cursor()
 
 @users_bp.route('/register', methods=['POST'])
-def register(username, password, fullname, phone, address, role):
+def register():
+    username = request.form.get('username')
+    password = request.form.get('password')
+    fullname = request.form.get('fullname')
+    phone = request.form.get('phone')
+    address = request.form.get('address')
+    role = request.form.get('role')
+
     # Mengecek apakah username sudah terdaftar
     query = "SELECT * FROM users WHERE username = %s"
     cursor.execute(query, (username,))
@@ -33,11 +40,14 @@ def register(username, password, fullname, phone, address, role):
     cursor.execute(query, values)
     db.commit()
 
-    return "Registrasi berhasil"
+    return true
 
 
 @users_bp.route('/login', methods=['POST'])
-def login(username, password):
+def login():
+    username = request.form.get('username')
+    password = request.form.get('password')
+
     # Mengecek apakah username ada dalam database
     query = "SELECT * FROM users WHERE username = %s"
     cursor.execute(query, (username,))
@@ -48,7 +58,16 @@ def login(username, password):
     # Memeriksa kesesuaian password
     hashed_password = user[2]
     if bcrypt.checkpw(password.encode(), hashed_password.encode()):
-        return "Login berhasil"
+        user_data = {
+            "id": user[0],
+            "username": user[1],
+            "fullname": user[3],
+            "phone": user[4],
+            "address": user[5],
+            "role": user[6]
+        }
+
+        return {"login": true, "user": user_data}
     else:
         return "Password salah"
 
