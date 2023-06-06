@@ -1,0 +1,9 @@
+# Files and directories to ignore when copying to the Docker image
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.dockerignore
+.docker/
+.git/
