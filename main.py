@@ -235,7 +235,12 @@ def record():
             }
         return jsonify(response_data)
     except Exception as e:
-        return {"error": str(e)}
+        response_data = {
+            "error": true,
+            "message": "Record Empty",
+            "datarecord": []
+        }
+        return jsonify(response_data)
 
 
 if __name__ == "__main__":
