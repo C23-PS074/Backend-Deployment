@@ -22,6 +22,74 @@ db = mysql.connector.connect(
 
 cursor = db.cursor()
 
+
+# Menginisialisasi penyimpanan Google Cloud
+storage_client = storage.Client()
+bucket_name = 'fracturevisionbucket'
+model_file_name = 'fracture_classification_model.h5'
+
+# Mendownload file model dari bucket
+bucket = storage_client.get_bucket(bucket_name)
+blob = bucket.blob(model_file_name)
+model_path = '/tmp/fractured_model.h5'
+blob.download_to_filename(model_path)
+
+# Memuat model
+model = tf.keras.models.load_model(model_path)
+
+# Preprocess the image
+def preprocess_image(image):
+    image = image.resize((150, 150))
+    image = np.array(image)
+    image = image / 255.0
+    image = np.expand_dims(image, axis=0)
+    return image
+
+def upload_image_to_bucket(image):
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    unique_filename = f"{timestamp}_{image.filename}"
+    folder_name = "uploads"
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(folder_name + "/" + unique_filename)
+    blob.upload_from_file(image)
+    image_path = f"https://storage.googleapis.com/{bucket_name}/{folder_name}/{unique_filename}"
+
+    return image_path
+    print(bucket_name)
+    print("Hubla")
+
+# Handle the image upload and prediction
+@app.route("/predict", methods=["POST"])
+def predict():
+    try:
+        image = request.files["image"]
+        users_id = request.form.get('id')
+        uploaded_image_path = upload_image_to_bucket(image)
+        img = Image.open(image)
+        img = img.convert("RGB")
+        img = preprocess_image(img)
+
+        # Make the prediction
+        prediction = model.predict(img)
+
+        if prediction[0] < 0.5:
+            predicted_class = 'Fractured'
+        else:
+            predicted_class = 'Normal'
+
+        dateNow = datetime.date(datetime.now())
+        timeNow = datetime.time(datetime.now())
+
+        query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
+        values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
+        cursor.execute(query, values)
+        db.commit()
+
+        return {"prediction": predicted_class, "image_path": uploaded_image_path}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.route('/register', methods=['POST'])
 def register():
     username = request.form.get('username')
@@ -128,79 +196,6 @@ def login():
         return respond
 
 
-
-
-# Menginisialisasi penyimpanan Google Cloud
-storage_client = storage.Client()
-bucket_name = 'fracturevisionbucket'
-model_file_name = 'fracture_classification_model.h5'
-
-# Mendownload file model dari bucket
-bucket = storage_client.get_bucket(bucket_name)
-blob = bucket.blob(model_file_name)
-model_path = '/tmp/fractured_model.h5'
-blob.download_to_filename(model_path)
-
-# Memuat model
-model = tf.keras.models.load_model(model_path)
-
-# Preprocess the image
-def preprocess_image(image):
-    image = image.resize((150, 150))
-    image = np.array(image)
-    image = image / 255.0
-    image = np.expand_dims(image, axis=0)
-    return image
-
-def upload_image_to_bucket(image):
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    unique_filename = f"{timestamp}_{image.filename}"
-    folder_name = "uploads"
-    bucket = storage_client.get_bucket(bucket_name)
-    blob = bucket.blob(folder_name + "/" + unique_filename)
-    blob.upload_from_file(image)
-    image_path = f"https://storage.googleapis.com/{bucket_name}/{folder_name}/{unique_filename}"
-
-    return image_path
-    print(bucket_name)
-    print("Hubla")
-
-# Handle the image upload and prediction
-@app.route("/predict", methods=["POST"])
-def predict():
-    try:
-        image = request.files["image"]
-        users_id = request.form.get('id')
-        uploaded_image_path = upload_image_to_bucket(image)
-        img = Image.open(image)
-        img = img.convert("RGB")
-        img = preprocess_image(img)
-
-        # Make the prediction
-        prediction = model.predict(img)
-
-        if prediction[0] < 0.5:
-            predicted_class = 'Fractured'
-        else:
-            predicted_class = 'Normal'
-
-        # now = datetime.now()
-        # dateNow = now.strftime("%Y-%m-%d")
-        # timeNow = now.strftime("%H:%M:%S")
-
-        dateNow = datetime.date(datetime.now())
-        timeNow = datetime.time(datetime.now())
-
-        query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
-        values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
-        cursor.execute(query, values)
-        db.commit()
-
-        return {"prediction": predicted_class, "image_path": uploaded_image_path}
-    except Exception as e:
-        return {"error": str(e)}
-
-
 @app.route("/users", methods=["GET"])
 def users():
     try:
@@ -233,6 +228,13 @@ def record():
                 "time": str(row[4])  # Mengonversi waktu menjadi string
             }
             formatted_results.append(formatted_row)
+            if not formatted_results:
+            response_data = {
+                "error": True,
+                "message": "No records found",
+                "datarecord": []
+            }
+            else:
             response_data = {
                 "error": False,
                 "message": "Record fetched successfully",
