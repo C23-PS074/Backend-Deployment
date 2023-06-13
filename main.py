@@ -228,20 +228,11 @@ def record():
                 "time": str(row[4])  # Mengonversi waktu menjadi string
             }
             formatted_results.append(formatted_row)
-            if not formatted_results:
-            response_data = {
-                "error": True,
-                "message": "No records found",
-                "datarecord": []
-            }
-            else:
             response_data = {
                 "error": False,
                 "message": "Record fetched successfully",
                 "datarecord": formatted_results
             }
-            
-
         return jsonify(response_data)
     except Exception as e:
         return {"error": str(e)}
