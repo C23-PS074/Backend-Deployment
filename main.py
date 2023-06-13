@@ -7,7 +7,7 @@ from PIL import Image
 import io
 import bcrypt
 import mysql.connector
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # from users import users_bp
 app = Flask(__name__)
@@ -78,7 +78,7 @@ def predict():
             predicted_class = 'Normal'
 
         dateNow = datetime.date(datetime.now())
-        timeNow = datetime.time(datetime.now())
+        timeNow = datetime.now() + timedelta(hours=7)
 
         query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
         values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
