@@ -90,6 +90,9 @@ def predict():
         return {"error": str(e)}
 
 
+
+
+
 @app.route('/register', methods=['POST'])
 def register():
     username = request.form.get('username')
