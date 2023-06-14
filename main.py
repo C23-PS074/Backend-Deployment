@@ -77,8 +77,11 @@ def predict():
         else:
             predicted_class = 'Normal'
 
+
+        wibtime = datetime.utcnow() + timedelta(hours=7)
+
         dateNow = datetime.date(datetime.now())
-        timeNow = datetime.now() + timedelta(hours=7)
+        timeNow = wibtime.time()
 
         query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
         values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
@@ -239,7 +242,7 @@ def record():
         return jsonify(response_data)
     except Exception as e:
         response_data = {
-            "error": true,
+            "error": True,
             "message": "Record Empty",
             "datarecord": []
         }
