@@ -23,6 +23,8 @@ from object_detection.builders import model_builder
 from object_detection.utils import ops as utils_ops
 import argparse
 import glob
+import os
+import zipfile
 
 # from users import users_bp
 app = Flask(__name__)
@@ -42,6 +44,7 @@ cursor = db.cursor()
 storage_client = storage.Client()
 bucket_name = 'fracturevisionbucket'
 model_file_name = 'fracture_classification_model.h5'
+file_zip = 'fracture_detection_model.zip'
 
 # Mendownload file model dari bucket
 bucket = storage_client.get_bucket(bucket_name)
@@ -49,9 +52,40 @@ blob = bucket.blob(model_file_name)
 predict_model_path = '/tmp/fractured_model.h5'
 blob.download_to_filename(predict_model_path)
 
+blob = bucket.blob(model_file_name)
+zip_file_path = '/tmp/fracture_detection_model.zip'
+blob.download_to_filename(zip_file_path)
 
-model_path = 'fracturevisionbucket/inference_graph/saved_model/'
-label_map_path = 'fracturevisionbucket/bone-fractures_label_map.pbtxt'
+model_path = f"https://storage.googleapis.com/fracturevisionbucket/inference_graph/saved_model/"
+label_map_path = f"https://storage.googleapis.com/fracturevisionbucket/bone-fractures_label_map.pbtxt"
+
+# model_path = f"https://storage.googleapis.com/fracturevisionbucket/inference_graph/saved_model/"
+
+# label_map_file_name = 'bone-fractures_label_map.pbtxt'
+# model_path = '/tmp/inference_graph/saved_model/'
+
+# label_map_blob = storage_client.bucket(bucket_name).blob(label_map_file_name)
+# label_map_path = '/tmp/bone-fractures_label_map.pbtxt'
+# label_map_blob.download_to_filename(label_map_path)
+
+# model_folder_name = 'inference_graph/saved_model/'
+
+# # Direktori temp
+# temp_directory = '/tmp/'
+
+# # Mendapatkan daftar objek dalam folder model
+# bucket = storage_client.bucket(bucket_name)
+# blobs = bucket.list_blobs(prefix=model_folder_name)
+
+# zip_ref = zipfile.ZipFile(zip_file_path, 'r')
+# zip_ref.extractall("/tmp/new_model")
+# zip_ref.close()
+
+# os.system('mv /tmp/inference_graph .')
+
+# files = os.listdir(model_path)
+# for file in files:
+#     print(file)
 
 # Memuat model
 predict_model = tf.keras.models.load_model(predict_model_path)
@@ -78,11 +112,9 @@ def upload_image_to_bucket(image):
     image_path = f"https://storage.googleapis.com/{bucket_name}/{folder_name}/{unique_filename}"
 
     return image_path
-    print(bucket_name)
-    print("Hubla")
 
 
-
+#DETEKSI DARI SINI
 
 def load_model_detection(model_path):
     model = tf.saved_model.load(model_path)
@@ -133,7 +165,15 @@ def run_detection(model, category_index, uploaded_image_path,output_path):
         max_boxes_to_draw=200,
         line_thickness=8)
     plt.imshow(image_np)
-    plt.savefig("{}/detection_output.png".format(output_path))
+    image2 = Image.fromarray(image_np)
+    image2.save('/tmp/image.png')
+
+    file_path1 = "/tmp/image.png"
+    if os.path.exists(file_path1):
+        print("File exists.")
+    else:
+        print("File does not exist.")
+
     for detection in output_dict['detection_scores']:
         if (detection >= 0.5):
             return True
@@ -144,7 +184,7 @@ def run_detection(model, category_index, uploaded_image_path,output_path):
 @app.route("/detection", methods=["POST"])
 def detection():
     try:
-        output_path = '/content/output'
+        output_path = '/tmp/output'
         image = request.files["image"]
         users_id = request.form.get('id')
         uploaded_image_path = upload_image_to_bucket(image)
@@ -154,28 +194,17 @@ def detection():
 
         # Make the prediction
         prediction = predict_model.predict(img)
-
+        
         if prediction[0] < 0.5:
             predicted_class = 'Fractured'
             detection_model = load_model_detection(model_path)
             category_index = label_map_util.create_category_index_from_labelmap(label_map_path, use_display_name=False)
             is_detected = run_detection(detection_model, category_index, uploaded_image_path,output_path)
-            print(is_detected)
-            if (is_detected):
-                print("Fracture berhasil terdeteksi")
-                bucket = storage_client.get_bucket(bucket_name)
-                file_name = "detection_output.png"
-                blob = bucket.blob(file_name)
-                blob.upload_from_filename("/tmp/output/detection_output.png")
-
-                file_path = "/tmp/output/detection_output.png"
-                if os.path.exists(file_path):
-                    print("File exists.")
-                else:
-                    print("File does not exist.")
-
-            else:
-                print("Fracture gagal dideteksi")
+                
+            bucket = storage_client.get_bucket(bucket_name)
+            file_name = "image.png"
+            blob = bucket.blob(file_name)
+            blob.upload_from_filename("/tmp/image.png")
         else:
             predicted_class = 'Normal'
 
