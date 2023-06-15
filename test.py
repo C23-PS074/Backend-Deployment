@@ -155,7 +155,7 @@ def run_detection(model, category_index, uploaded_image_path,output_path, fileim
             return False
 
 
-@app.route("/detection", methods=["POST"])
+@app.route("/predict", methods=["POST"])
 def detection():
     try:
         output_path = '/tmp/output'
@@ -198,46 +198,49 @@ def detection():
         db.commit()
 
         detection={"prediction": predicted_class, 
-                "image_path": uploaded_image_path,
-                "detection_path": detectionimage_path}
+                "image_path": detectionimage_path}
+        
+        # detection={"prediction": predicted_class, 
+        #         "image_path": uploaded_image_path,
+        #         "detection_path": detectionimage_path}
         return detection
     except Exception as e:
         return {"error": str(e)}
 
 
 
-@app.route("/predict", methods=["POST"])
-def predict():
-    try:
-        image = request.files["image"]
-        users_id = request.form.get('id')
-        uploaded_image_path = upload_image_to_bucket(image)
-        img = Image.open(image)
-        img = img.convert("RGB")
-        img = preprocess_image(img)
+# @app.route("/predict", methods=["POST"])
+# def predict():
+#     try:
+#         image = request.files["image"]
+#         users_id = request.form.get('id')
+#         uploaded_image_path = upload_image_to_bucket(image)
+#         img = Image.open(image)
+#         img = img.convert("RGB")
+#         img = preprocess_image(img)
 
-        # Make the prediction
-        prediction = predict_model.predict(img)
+#         # Make the prediction
+#         prediction = predict_model.predict(img)
 
-        if prediction[0] < 0.5:
-            predicted_class = 'Fractured'
-        else:
-            predicted_class = 'Normal'
+#         if prediction[0] < 0.5:
+#             predicted_class = 'Fractured'
+#         else:
+#             predicted_class = 'Normal'
 
 
-        wibtime = datetime.utcnow() + timedelta(hours=7)
+#         wibtime = datetime.utcnow() + timedelta(hours=7)
 
-        dateNow = datetime.date(datetime.now())
-        timeNow = wibtime.time()
+#         dateNow = datetime.date(datetime.now())
+#         timeNow = wibtime.time()
 
-        query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
-        values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
-        cursor.execute(query, values)
-        db.commit()
+#         query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
+#         values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
+#         cursor.execute(query, values)
+#         db.commit()
 
-        return {"prediction": predicted_class, "image_path": uploaded_image_path}
-    except Exception as e:
-        return {"error": str(e)}
+#         return {"prediction": predicted_class, "image_path": uploaded_image_path}
+#     except Exception as e:
+#         return {"error": str(e)}
 
 
 
