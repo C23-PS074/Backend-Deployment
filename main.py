@@ -183,8 +183,10 @@ def detection():
             blob = bucket.blob(foldername + "/" + unique_file_name)
             blob.upload_from_filename("/tmp/"+ unique_file_name)
             detectionimage_path= f"https://storage.googleapis.com/{bucket_name}/{foldername}/{unique_file_name}"
+            path_response = detectionimage_path;
         else:
             predicted_class = 'Normal'
+            path_response = uploaded_image_path;
 
 
         wibtime = datetime.utcnow() + timedelta(hours=7)
@@ -193,12 +195,12 @@ def detection():
         timeNow = wibtime.time()
 
         query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
-        values = (detectionimage_path, predicted_class, dateNow, timeNow, users_id)
+        values = (path_response, predicted_class, dateNow, timeNow, users_id)
         cursor.execute(query, values)
         db.commit()
 
         detection={"prediction": predicted_class, 
-                "image_path": detectionimage_path}
+                "image_path": path_response}
         
         # detection={"prediction": predicted_class, 
         #         "image_path": uploaded_image_path,
