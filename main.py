@@ -2,12 +2,29 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from google.cloud import storage
 import tensorflow as tf
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
 import numpy as np
 from PIL import Image
 import io
+from io import BytesIO
 import bcrypt
 import mysql.connector
 from datetime import datetime, timedelta
+import matplotlib
+import matplotlib.pyplot as plt
+import scipy.misc
+from six import BytesIO
+from PIL import Image, ImageDraw, ImageFont
+from object_detection.utils import label_map_util
+from object_detection.utils import config_util
+from object_detection.utils import visualization_utils as viz_utils
+from object_detection.builders import model_builder
+from object_detection.utils import ops as utils_ops
+import argparse
+import glob
+import os
+import zipfile
 
 # from users import users_bp
 app = Flask(__name__)
@@ -27,15 +44,27 @@ cursor = db.cursor()
 storage_client = storage.Client()
 bucket_name = 'fracturevisionbucket'
 model_file_name = 'fracture_classification_model.h5'
+file_zip = 'fracture_detection_model.zip'
 
 # Mendownload file model dari bucket
 bucket = storage_client.get_bucket(bucket_name)
 blob = bucket.blob(model_file_name)
-model_path = '/tmp/fractured_model.h5'
-blob.download_to_filename(model_path)
+predict_model_path = '/tmp/fractured_model.h5'
+blob.download_to_filename(predict_model_path)
+
+blob = bucket.blob(model_file_name)
+zip_file_path = '/tmp/fracture_detection_model.zip'
+blob.download_to_filename(zip_file_path)
+
+model_path = f"https://storage.googleapis.com/fracturevisionbucket/inference_graph/saved_model/"
+label_map_path = f"https://storage.googleapis.com/fracturevisionbucket/bone-fractures_label_map.pbtxt"
 
 # Memuat model
-model = tf.keras.models.load_model(model_path)
+predict_model = tf.keras.models.load_model(predict_model_path)
+
+utils_ops.tf = tf.compat.v1
+# Patch the location of gfile
+tf.gfile = tf.io.gfile
 
 # Preprocess the image
 def preprocess_image(image):
@@ -55,25 +84,105 @@ def upload_image_to_bucket(image):
     image_path = f"https://storage.googleapis.com/{bucket_name}/{folder_name}/{unique_filename}"
 
     return image_path
-    print(bucket_name)
-    print("Hubla")
 
-# Handle the image upload and prediction
+
+#DETEKSI DARI SINI
+
+def load_model_detection(model_path):
+    model = tf.saved_model.load(model_path)
+    return model
+
+def load_image_into_numpy_array(path):
+    img_data = tf.io.gfile.GFile(path, 'rb').read()
+    image = Image.open(BytesIO(img_data))
+    (im_width, im_height) = image.size
+    return np.array(image.getdata()).reshape(
+        (im_height, im_width, 3)).astype(np.uint8)
+
+def detection_output(model, image):
+    input_tensor = tf.convert_to_tensor(image)
+    input_tensor = input_tensor[tf.newaxis, ...]
+
+    output_dict = model(input_tensor)
+
+    num_detections = int(output_dict.pop('num_detections'))
+    output_dict = {key: value[0, :num_detections].numpy()
+                   for key, value in output_dict.items()}
+    output_dict['num_detections'] = num_detections
+
+    output_dict['detection_classes'] = output_dict['detection_classes'].astype(np.int64)
+
+    if 'fracture' in output_dict:
+        detection_fracture_reframed = utils_ops.reframe_box_masks_to_image_masks(
+            output_dict['fracture'], output_dict['detection_boxes'],
+            image.shape[0], image.shape[1])
+        detection_fracture_reframed = tf.cast(detection_fracture_reframed > 0.5, tf.uint8)
+        output_dict['detection_fracture_reframed'] = detection_fracture_reframed.numpy()
+
+    return output_dict
+
+
+def run_detection(model, category_index, uploaded_image_path,output_path, fileimage, timestamp):
+    image_np = load_image_into_numpy_array(uploaded_image_path)
+    output_dict = detection_output(model, image_np)
+    viz_utils.visualize_boxes_and_labels_on_image_array(
+        image_np,
+        output_dict['detection_boxes'],
+        output_dict['detection_classes'],
+        output_dict['detection_scores'],
+        category_index,
+        instance_masks=output_dict.get('detection_masks_reframed', None),
+        use_normalized_coordinates=True,
+        skip_labels=True,
+        max_boxes_to_draw=200,
+        line_thickness=8)
+    plt.imshow(image_np)
+    waktu=timestamp
+    uniquename= fileimage
+    image2 = Image.fromarray(image_np)
+    image2.save('/tmp/hasil_'+ waktu + '_' + uniquename)
+
+    file_path1 = f"/tmp/hasil_{uniquename}"
+    if os.path.exists(file_path1):
+        print("File exists.")
+    else:
+        print("File does not exist.")
+
+    for detection in output_dict['detection_scores']:
+        if (detection >= 0.5):
+            return True
+        else:
+            return False
+
+
 @app.route("/predict", methods=["POST"])
-def predict():
+def detection():
     try:
+        output_path = '/tmp/output'
         image = request.files["image"]
         users_id = request.form.get('id')
+        fileimage = image.filename
         uploaded_image_path = upload_image_to_bucket(image)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         img = Image.open(image)
         img = img.convert("RGB")
         img = preprocess_image(img)
 
         # Make the prediction
-        prediction = model.predict(img)
-
+        prediction = predict_model.predict(img)
+        
         if prediction[0] < 0.5:
             predicted_class = 'Fractured'
+            detection_model = load_model_detection(model_path)
+            category_index = label_map_util.create_category_index_from_labelmap(label_map_path, use_display_name=False)
+            is_detected = run_detection(detection_model, category_index, uploaded_image_path,output_path, fileimage, timestamp)
+                
+            bucket = storage_client.get_bucket(bucket_name)
+            unique_file_name = f"hasil_{timestamp}_{image.filename}"
+            foldername="output"
+            blob = bucket.blob(foldername + "/" + unique_file_name)
+            blob.upload_from_filename("/tmp/"+ unique_file_name)
+            detectionimage_path= f"https://storage.googleapis.com/{bucket_name}/{foldername}/{unique_file_name}"
         else:
             predicted_class = 'Normal'
 
@@ -84,13 +193,54 @@ def predict():
         timeNow = wibtime.time()
 
         query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
-        values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
+        values = (detectionimage_path, predicted_class, dateNow, timeNow, users_id)
         cursor.execute(query, values)
         db.commit()
 
-        return {"prediction": predicted_class, "image_path": uploaded_image_path}
+        detection={"prediction": predicted_class, 
+                "image_path": detectionimage_path}
+        
+        # detection={"prediction": predicted_class, 
+        #         "image_path": uploaded_image_path,
+        #         "detection_path": detectionimage_path}
+        return detection
     except Exception as e:
         return {"error": str(e)}
+
+
+
+# @app.route("/predict", methods=["POST"])
+# def predict():
+#     try:
+#         image = request.files["image"]
+#         users_id = request.form.get('id')
+#         uploaded_image_path = upload_image_to_bucket(image)
+#         img = Image.open(image)
+#         img = img.convert("RGB")
+#         img = preprocess_image(img)
+
+#         # Make the prediction
+#         prediction = predict_model.predict(img)
+
+#         if prediction[0] < 0.5:
+#             predicted_class = 'Fractured'
+#         else:
+#             predicted_class = 'Normal'
+
+
+#         wibtime = datetime.utcnow() + timedelta(hours=7)
+
+#         dateNow = datetime.date(datetime.now())
+#         timeNow = wibtime.time()
+
+#         query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
+#         values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
+#         cursor.execute(query, values)
+#         db.commit()
+
+#         return {"prediction": predicted_class, "image_path": uploaded_image_path}
+#     except Exception as e:
+#         return {"error": str(e)}
 
 
 
