@@ -193,7 +193,7 @@ def detection():
         timeNow = wibtime.time()
 
         query = "INSERT INTO record (image, result, date, time, users_id) VALUES (%s, %s, %s, %s, %s)"
-        values = (uploaded_image_path, predicted_class, dateNow, timeNow, users_id)
+        values = (detectionimage_path, predicted_class, dateNow, timeNow, users_id)
         cursor.execute(query, values)
         db.commit()
 
