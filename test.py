@@ -122,7 +122,7 @@ def detection_output(model, image):
     return output_dict
 
 
-def run_detection(model, category_index, uploaded_image_path,output_path):
+def run_detection(model, category_index, uploaded_image_path,output_path, fileimage, timestamp):
     image_np = load_image_into_numpy_array(uploaded_image_path)
     output_dict = detection_output(model, image_np)
     viz_utils.visualize_boxes_and_labels_on_image_array(
@@ -137,10 +137,12 @@ def run_detection(model, category_index, uploaded_image_path,output_path):
         max_boxes_to_draw=200,
         line_thickness=8)
     plt.imshow(image_np)
+    waktu=timestamp
+    uniquename= fileimage
     image2 = Image.fromarray(image_np)
-    image2.save('/tmp/image.png')
+    image2.save('/tmp/hasil_'+ waktu + '_' + uniquename)
 
-    file_path1 = "/tmp/image.png"
+    file_path1 = f"/tmp/hasil_{uniquename}"
     if os.path.exists(file_path1):
         print("File exists.")
     else:
@@ -159,7 +161,9 @@ def detection():
         output_path = '/tmp/output'
         image = request.files["image"]
         users_id = request.form.get('id')
+        fileimage = image.filename
         uploaded_image_path = upload_image_to_bucket(image)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         img = Image.open(image)
         img = img.convert("RGB")
         img = preprocess_image(img)
@@ -171,12 +175,14 @@ def detection():
             predicted_class = 'Fractured'
             detection_model = load_model_detection(model_path)
             category_index = label_map_util.create_category_index_from_labelmap(label_map_path, use_display_name=False)
-            is_detected = run_detection(detection_model, category_index, uploaded_image_path,output_path)
+            is_detected = run_detection(detection_model, category_index, uploaded_image_path,output_path, fileimage, timestamp)
                 
             bucket = storage_client.get_bucket(bucket_name)
-            file_name = "image.png"
-            blob = bucket.blob(file_name)
-            blob.upload_from_filename("/tmp/image.png")
+            unique_file_name = f"hasil_{timestamp}_{image.filename}"
+            foldername="output"
+            blob = bucket.blob(foldername + "/" + unique_file_name)
+            blob.upload_from_filename("/tmp/"+ unique_file_name)
+            detectionimage_path= f"https://storage.googleapis.com/{bucket_name}/{foldername}/{unique_file_name}"
         else:
             predicted_class = 'Normal'
 
@@ -191,7 +197,10 @@ def detection():
         cursor.execute(query, values)
         db.commit()
 
-        return {"prediction": predicted_class, "image_path": uploaded_image_path}
+        detection={"prediction": predicted_class, 
+                "image_path": uploaded_image_path,
+                "detection_path": detectionimage_path}
+        return detection
     except Exception as e:
         return {"error": str(e)}
 
