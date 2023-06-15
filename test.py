@@ -59,34 +59,6 @@ blob.download_to_filename(zip_file_path)
 model_path = f"https://storage.googleapis.com/fracturevisionbucket/inference_graph/saved_model/"
 label_map_path = f"https://storage.googleapis.com/fracturevisionbucket/bone-fractures_label_map.pbtxt"
 
-# model_path = f"https://storage.googleapis.com/fracturevisionbucket/inference_graph/saved_model/"
-
-# label_map_file_name = 'bone-fractures_label_map.pbtxt'
-# model_path = '/tmp/inference_graph/saved_model/'
-
-# label_map_blob = storage_client.bucket(bucket_name).blob(label_map_file_name)
-# label_map_path = '/tmp/bone-fractures_label_map.pbtxt'
-# label_map_blob.download_to_filename(label_map_path)
-
-# model_folder_name = 'inference_graph/saved_model/'
-
-# # Direktori temp
-# temp_directory = '/tmp/'
-
-# # Mendapatkan daftar objek dalam folder model
-# bucket = storage_client.bucket(bucket_name)
-# blobs = bucket.list_blobs(prefix=model_folder_name)
-
-# zip_ref = zipfile.ZipFile(zip_file_path, 'r')
-# zip_ref.extractall("/tmp/new_model")
-# zip_ref.close()
-
-# os.system('mv /tmp/inference_graph .')
-
-# files = os.listdir(model_path)
-# for file in files:
-#     print(file)
-
 # Memuat model
 predict_model = tf.keras.models.load_model(predict_model_path)
 
