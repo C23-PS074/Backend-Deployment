@@ -92,6 +92,8 @@ def load_model_detection(model_path):
     model = tf.saved_model.load(model_path)
     return model
 
+detection_model = load_model_detection(model_path)
+
 def load_image_into_numpy_array(path):
     img_data = tf.io.gfile.GFile(path, 'rb').read()
     image = Image.open(BytesIO(img_data))
@@ -173,7 +175,6 @@ def detection():
         
         if prediction[0] < 0.5:
             predicted_class = 'Fractured'
-            detection_model = load_model_detection(model_path)
             category_index = label_map_util.create_category_index_from_labelmap(label_map_path, use_display_name=False)
             is_detected = run_detection(detection_model, category_index, uploaded_image_path,output_path, fileimage, timestamp)
                 
