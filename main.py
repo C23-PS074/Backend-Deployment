@@ -37,7 +37,6 @@ db = mysql.connector.connect(
     database='fracturevisiondb'
 )
 
-cursor = db.cursor(buffered=True)
 
 # Menginisialisasi penyimpanan Google Cloud
 storage_client = storage.Client()
